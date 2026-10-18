@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState, useTransition, type FormEvent } from "react";
-import { joinAction } from "@/app/h/actions";
+import { joinAction } from "@/lib/api";
 import type { RunAction } from "@/components/huddle/use-huddle";
 import { PlayerTag } from "@/components/round/player-tag";
 import { BUTTON_PRIMARY, Field, Problem, TurfHeader } from "@/components/ui/kit";

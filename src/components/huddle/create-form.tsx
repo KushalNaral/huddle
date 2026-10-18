@@ -1,17 +1,34 @@
 "use client";
 
-import { useActionState } from "react";
-import { createHuddleAction, type CreateState } from "@/app/h/actions";
+import { useRouter } from "next/navigation";
+import { useState, useTransition, type FormEvent } from "react";
 import { BUTTON_PRIMARY, Field, Problem } from "@/components/ui/kit";
+import { createHuddle, huddlePath } from "@/lib/api";
 import { LIMITS } from "@/lib/view";
 
-const EMPTY: CreateState = { error: null, values: {} };
+const OFFLINE_ERROR = "Couldn’t reach Huddle. Check your connection and try again.";
 
 export function CreateForm() {
-  const [state, action, pending] = useActionState(createHuddleAction, EMPTY);
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [problem, setProblem] = useState<string | null>(null);
+
+  function onSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = new FormData(e.currentTarget);
+    startTransition(async () => {
+      try {
+        const result = await createHuddle(form);
+        if (result.ok) router.push(huddlePath(result.slug));
+        else setProblem(result.error);
+      } catch {
+        setProblem(OFFLINE_ERROR);
+      }
+    });
+  }
 
   return (
-    <form action={action} className="flex flex-col gap-5">
+    <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5">
       <Field
         label="What are you deciding?"
         name="question"
@@ -19,7 +36,6 @@ export function CreateForm() {
         maxLength={LIMITS.question}
         placeholder="Dinner tonight?"
         autoComplete="off"
-        defaultValue={state.values.question}
       />
       <Field
         label="Your name"
@@ -28,7 +44,6 @@ export function CreateForm() {
         maxLength={LIMITS.name}
         autoComplete="given-name"
         placeholder="Alex"
-        defaultValue={state.values.name}
       />
       <Field
         label="Your budget each (optional)"
@@ -36,10 +51,9 @@ export function CreateForm() {
         lead="$"
         inputMode="decimal"
         placeholder="20"
-        defaultValue={state.values.cap}
         hint="Private. Options over it rank below the rest."
       />
-      <Problem>{state.error}</Problem>
+      <Problem>{problem}</Problem>
       <button type="submit" disabled={pending} className={BUTTON_PRIMARY}>
         {pending ? "Starting…" : "Start a huddle"}
       </button>

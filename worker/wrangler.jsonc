@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "huddle-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "HUDDLE", "class_name": "Huddle" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Huddle"] }],
+  "vars": {
+    // Comma-separated origins the site is served from.
+    "ALLOWED_ORIGINS": "https://kushalnaral.github.io,http://localhost:3100,http://127.0.0.1:3100"
+  }
+}

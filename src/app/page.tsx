@@ -31,7 +31,7 @@ export default function Home() {
         <CreateForm />
         <p className="mt-auto pt-10 text-center text-[1rem] text-ink">
           Want to see it first?{" "}
-          <Link href="/h/demo" className="font-semibold underline decoration-2 underline-offset-4">
+          <Link href="/h/?id=demo" className="font-semibold underline decoration-2 underline-offset-4">
             Try the demo round
           </Link>
         </p>

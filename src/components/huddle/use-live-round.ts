@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { callItAction, runItBackAction, voteAction } from "@/app/h/actions";
+import { callItAction, runItBackAction, voteAction } from "@/lib/api";
 import type { RunAction } from "@/components/huddle/use-huddle";
 import type { RoundState } from "@/components/round/round-screen";
 import type { Vote } from "@/lib/round";

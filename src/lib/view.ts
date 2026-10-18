@@ -1,4 +1,4 @@
-import type { Bound, Marks, Option, Player, Round, Vote } from "@/lib/round";
+import type { Bound, Marks, Option, Player, Round, Vote } from "./round";
 
 export type HuddleStatus = "collecting" | "voting" | "decided";
 

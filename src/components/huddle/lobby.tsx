@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore, useTransition, type FormEvent } from "react";
-import { addOptionAction, removeOptionAction, startVotingAction, updateMeAction } from "@/app/h/actions";
+import { addOptionAction, removeOptionAction, shareUrl, startVotingAction, updateMeAction } from "@/lib/api";
 import type { RunAction } from "@/components/huddle/use-huddle";
 import { Mark } from "@/components/marks";
 import { PlayerTag } from "@/components/round/player-tag";
@@ -71,7 +71,7 @@ const noSubscribe = () => () => {};
 function Invite({ slug, alone }: { slug: string; alone: boolean }) {
   const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
   const origin = useSyncExternalStore(noSubscribe, () => window.location.origin, () => "");
-  const url = `${origin}/h/${slug}`;
+  const url = shareUrl(origin, slug);
 
   async function share() {
     const outcome = await shareOrCopy({ title: "Huddle", text: "Help us decide:", url });
