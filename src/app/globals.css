@@ -1,0 +1,178 @@
+@import "tailwindcss";
+
+@theme {
+  --color-turf: #1f6e3a;
+  --color-turf-deep: #165029;
+  --color-turf-chalk: #eaf5ed;
+  --color-turf-chalk-soft: #b9dcc4;
+  --color-board: #f3f7f4;
+  --color-sheet: #ffffff;
+  --color-ink: #1b1d22;
+  --color-ink-soft: #3b4a41;
+  --color-rule: #d3e1d8;
+  --color-marker-blue: #1d4fd8;
+  --color-marker-red: #d6302f;
+  --color-marker-green: #11935a;
+  --color-marker-violet: #7a3fc4;
+  --color-call: #f2b800;
+  --color-call-wash: #fff3c4;
+
+  --font-display: var(--font-barlow-condensed), "Arial Narrow", sans-serif;
+  --font-sans: var(--font-barlow), system-ui, sans-serif;
+  --font-jersey: var(--font-jersey-block), var(--font-barlow-condensed), sans-serif;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-quart: cubic-bezier(0.5, 0, 0.75, 0);
+}
+
+html {
+  background: var(--color-turf);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+  scrollbar-color: var(--color-turf) var(--color-board);
+}
+
+body {
+  background: var(--color-board);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  caret-color: var(--color-marker-blue);
+  overflow-x: clip;
+}
+
+::selection {
+  background: var(--color-call);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-marker-blue);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+.on-turf :focus-visible {
+  outline-color: var(--color-call);
+}
+
+a {
+  text-underline-offset: 0.2em;
+}
+
+/* Marker strokes: every mark is an SVG path with pathLength="1". */
+.stroke-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw var(--draw-ms, 160ms) var(--ease-out-expo) var(--draw-delay, 0ms) forwards;
+}
+
+.stroke-static {
+  stroke-dasharray: 1;
+}
+
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A voted card leaving the board. */
+@keyframes exit-yes {
+  to {
+    transform: translate(calc(var(--from-x, 0px) + 115%), var(--from-y, 0px)) rotate(9deg);
+    opacity: 0;
+  }
+}
+@keyframes exit-no {
+  to {
+    transform: translate(calc(var(--from-x, 0px) - 115%), var(--from-y, 0px)) rotate(-9deg);
+    opacity: 0;
+  }
+}
+@keyframes exit-love {
+  to {
+    transform: translate(var(--from-x, 0px), calc(var(--from-y, 0px) - 110%)) rotate(-2deg);
+    opacity: 0;
+  }
+}
+.exit-yes,
+.exit-no,
+.exit-love {
+  animation-duration: 240ms;
+  animation-timing-function: var(--ease-in-quart);
+  animation-delay: 70ms;
+  animation-fill-mode: both;
+  transform: translate(var(--from-x, 0px), var(--from-y, 0px));
+}
+.exit-yes {
+  animation-name: exit-yes;
+}
+.exit-no {
+  animation-name: exit-no;
+}
+.exit-love {
+  animation-name: exit-love;
+}
+
+/* Undo brings the card back onto the board. */
+@keyframes return {
+  from {
+    transform: translateY(-24px) scale(0.97);
+    opacity: 0;
+  }
+}
+.card-return {
+  animation: return 260ms var(--ease-out-expo);
+}
+
+@keyframes rise {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+}
+.rise {
+  animation: rise 420ms var(--ease-out-expo) var(--rise-delay, 0ms) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stroke-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .exit-yes,
+  .exit-no,
+  .exit-love {
+    animation-duration: 1ms;
+    animation-delay: 0ms;
+  }
+  .card-return,
+  .rise {
+    animation: none;
+  }
+}
+
+.keys-hint {
+  display: none;
+}
+@media (pointer: fine) {
+  .keys-hint {
+    display: flex;
+  }
+}
+
+/* The next sheet goes up on the board. */
+@keyframes enter {
+  from {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+.card-enter {
+  animation: enter 220ms var(--ease-out-expo);
+}
+@media (prefers-reduced-motion: reduce) {
+  .card-enter {
+    animation: none;
+  }
+}
