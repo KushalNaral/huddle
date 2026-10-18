@@ -1,9 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useState, type CSSProperties } from "react";
-import { MARKER, Mark, VOTE_PAST } from "@/components/marks";
+import { MARKER, Mark, VOTE_DID } from "@/components/marks";
 import { PlayerTag } from "@/components/round/player-tag";
-import { explain, type Marks, type Round, type Tally } from "@/lib/round";
+import { boundNote, explain, type Marks, type Round, type Tally } from "@/lib/round";
+import { shareOrCopy } from "@/lib/share";
 
 type Props = {
   round: Round;
@@ -12,8 +14,14 @@ type Props = {
   counts: Record<string, number>;
   calledEarly: boolean;
   reasonFails: boolean;
-  onRunItBack: () => void;
+  /** Null when this viewer can't restart the round (only the host can). */
+  onRunItBack: (() => void) | null;
+  /** Shown under the board; the demo says its data is made up. */
+  footnote?: string | undefined;
 };
+
+const SECONDARY =
+  "h-14 rounded-[10px] border-2 border-ink bg-sheet font-display text-[1.25rem] font-bold uppercase tracking-[0.03em] text-ink hover:bg-board active:translate-y-0.5";
 
 const TIE_NOTE = {
   loves: "more circles",
@@ -22,10 +30,10 @@ const TIE_NOTE = {
 } as const;
 
 /** The call: one winner, ringed, with the whole board underneath to prove it. */
-export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, onRunItBack }: Props) {
+export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, onRunItBack, footnote }: Props) {
   const [shared, setShared] = useState<"idle" | "copied" | "failed">("idle");
-  const winner = tally.rows[0];
-  const runnerUp = tally.rows[1];
+  const [winner, runnerUp] = tally.rows;
+  if (!winner) return null;
   const total = round.options.length;
   const o = winner.option;
   const reason = reasonFails ? null : explain(round, winner);
@@ -34,16 +42,8 @@ export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, 
   async function share() {
     const url = window.location.href;
     const text = `The call for “${round.question}”: ${o.name}.`;
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Huddle", text, url });
-        return;
-      }
-      await navigator.clipboard.writeText(`${text} ${url}`);
-      setShared("copied");
-    } catch (err) {
-      if ((err as DOMException)?.name !== "AbortError") setShared("failed");
-    }
+    const outcome = await shareOrCopy({ title: "Huddle", text, url });
+    if (outcome === "copied" || outcome === "failed") setShared(outcome);
   }
 
   return (
@@ -75,8 +75,11 @@ export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, 
             <ul className="mt-3 flex flex-col gap-1 text-[0.9375rem] text-ink-soft">
               {tally.filtered.map((r) => (
                 <li key={r.option.id}>
-                  {r.option.name} scored {r.points === winner.points ? "as well" : "higher"}, but it’s over your $
-                  {round.yourCap} cap.
+                  {r.option.name} scored {r.points === winner.points ? "as well" : "higher"}, but it’s{" "}
+                  {round.bounds[r.option.id] === "yours" && round.yourCap !== null
+                    ? `over your $${round.yourCap} cap`
+                    : "over someone’s budget"}
+                  .
                 </li>
               ))}
               {tally.tieBreak && runnerUp && (
@@ -103,19 +106,21 @@ export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, 
             >
               {shared === "copied" ? "Link copied" : "Share the call"}
             </button>
-            <button
-              type="button"
-              onClick={onRunItBack}
-              className="h-14 rounded-[10px] border-2 border-ink bg-sheet font-display text-[1.25rem] font-bold uppercase tracking-[0.03em] text-ink hover:bg-board active:translate-y-0.5"
-            >
-              Run it back
-            </button>
+            {onRunItBack ? (
+              <button type="button" onClick={onRunItBack} className={SECONDARY}>
+                Run it back
+              </button>
+            ) : (
+              <Link href="/" className={`${SECONDARY} grid place-items-center`}>
+                Start your own
+              </Link>
+            )}
           </div>
           <p className="sr-only" aria-live="polite">
             {shared === "copied" ? "Link copied to clipboard." : shared === "failed" ? "Couldn’t share. Copy the address bar link instead." : ""}
           </p>
           {shared === "failed" && (
-            <p className="mt-2 text-[0.9375rem] text-marker-red">Couldn’t share from this browser. Copy the link from the address bar instead.</p>
+            <p className="mt-2 border-l-[3px] border-ink pl-2.5 text-[0.9375rem] font-semibold text-ink">Couldn’t share from this browser. Copy the link from the address bar instead.</p>
           )}
         </div>
       </section>
@@ -148,7 +153,7 @@ export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, 
                   {row.option.name}
                   {row.outOfBounds && (
                     <span className="mt-0.5 block font-display text-[0.8125rem] font-bold uppercase tracking-[0.04em] text-ink">
-                      Over your ${round.yourCap} cap
+                      {boundNote(round, row.option)}
                     </span>
                   )}
                 </th>
@@ -167,7 +172,7 @@ export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, 
                             delay={900 + r * 70 + c * 35}
                             className="mx-auto size-8"
                           />
-                          <span className="sr-only">{`${p.name} ${VOTE_PAST[v]} it`}</span>
+                          <span className="sr-only">{`${p.name} ${VOTE_DID[v]}`}</span>
                         </>
                       ) : (
                         <span className="text-ink-soft">
@@ -187,9 +192,7 @@ export function Reveal({ round, tally, marks, counts, calledEarly, reasonFails, 
         </table>
       </section>
 
-      <p className="mt-8 text-center text-[0.8125rem] text-ink-soft">
-        Demo round: places, prices and ratings are made up.
-      </p>
+      {footnote && <p className="mt-8 text-center text-[0.8125rem] text-ink-soft">{footnote}</p>}
     </div>
   );
 }

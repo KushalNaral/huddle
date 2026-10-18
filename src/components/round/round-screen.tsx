@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { VOTE_PAST } from "@/components/marks";
 import { Reveal } from "@/components/round/reveal";
 import { Scoreboard } from "@/components/round/scoreboard";
@@ -8,111 +8,72 @@ import { SwipeDeck } from "@/components/round/swipe-deck";
 import { Waiting } from "@/components/round/waiting";
 import { tally, type Marks, type Option, type Round, type Vote } from "@/lib/round";
 
-type Phase = "swipe" | "waiting" | "reveal";
+/**
+ * What drives a round. The demo fakes everyone else on a timer; a live huddle
+ * gets it from the server. The screen itself doesn't know which.
+ */
+export type RoundState = {
+  yourMarks: Record<string, Vote>;
+  /** How many options each other player has marked. */
+  otherCounts: Record<string, number>;
+  /** Set once the call is made. */
+  result: { marks: Marks; calledEarly: boolean } | null;
+  /** Marks are made in order, so a null clears your most recent one. */
+  setMark: (optionId: string, vote: Vote | null) => void;
+  /** Null unless you can call it early. */
+  callNow: (() => void) | null;
+  /** Null unless you can restart the round. */
+  runItBack: (() => void) | null;
+};
 
-// Demo pacing for everyone else's progress. Live rounds get this from realtime.
-const OTHERS_START: Record<string, number> = { sam: 2, jo: 1, riya: 3 };
-const OTHERS_STEP_MS: Record<string, number> = { sam: 2300, jo: 2700, riya: 3100 };
+type Props = {
+  round: Round;
+  state: RoundState;
+  reasonFails?: boolean;
+  footnote?: string | undefined;
+};
 
-export function RoundScreen({ round, reasonFails }: { round: Round; reasonFails: boolean }) {
-  const you = round.players.find((p) => p.isYou)!;
+export function RoundScreen({ round, state, reasonFails = false, footnote }: Props) {
+  const { yourMarks, otherCounts, result, setMark, runItBack } = state;
+  const you = round.players.find((p) => p.isYou);
   const others = round.players.filter((p) => !p.isYou);
   const total = round.options.length;
 
-  const [yourMarks, setYourMarks] = useState<Record<string, Vote>>({});
-  const [history, setHistory] = useState<string[]>([]);
   const [returnedId, setReturnedId] = useState<string | null>(null);
-  const [otherCounts, setOtherCounts] = useState<Record<string, number>>(() =>
-    Object.fromEntries(others.map((p) => [p.id, OTHERS_START[p.id] ?? 0])),
-  );
-  const [phase, setPhase] = useState<Phase>("swipe");
-  const [calledEarly, setCalledEarly] = useState(false);
   const [announcement, setAnnouncement] = useState("");
 
-  const index = history.length;
-  const counts = useMemo(() => ({ ...otherCounts, [you.id]: index }), [otherCounts, you.id, index]);
+  // You mark options in order, so your marks are always a prefix of the list.
+  const firstUnmarked = round.options.findIndex((o) => yourMarks[o.id] === undefined);
+  const index = firstUnmarked === -1 ? total : firstUnmarked;
+  const counts: Record<string, number> = you ? { ...otherCounts, [you.id]: index } : otherCounts;
   const othersDone = others.every((p) => (otherCounts[p.id] ?? 0) >= total);
-
-  // Everyone else keeps marking while you do.
-  useEffect(() => {
-    if (phase === "reveal") return;
-    const timers = others.map((p) =>
-      window.setInterval(() => {
-        setOtherCounts((c) => ({ ...c, [p.id]: Math.min(total, (c[p.id] ?? 0) + 1) }));
-      }, OTHERS_STEP_MS[p.id] ?? 2500),
-    );
-    return () => timers.forEach(window.clearInterval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase, total]);
-
-  // Once you are done, the call comes as soon as everyone else is.
-  useEffect(() => {
-    if (phase !== "waiting" || !othersDone) return;
-    const t = window.setTimeout(() => setPhase("reveal"), 900);
-    return () => window.clearTimeout(t);
-  }, [phase, othersDone]);
+  const phase = result ? "reveal" : index >= total ? "waiting" : "swipe";
 
   useEffect(() => {
     window.scrollTo({ top: 0 });
   }, [phase]);
 
-  const marks: Marks = useMemo(() => {
-    const m: Marks = { [you.id]: yourMarks };
-    for (const p of others) {
-      const script = round.scripted[p.id] ?? {};
-      const n = otherCounts[p.id] ?? 0;
-      m[p.id] = Object.fromEntries(round.options.slice(0, n).map((o) => [o.id, script[o.id]]));
-    }
-    return m;
-  }, [you.id, yourMarks, others, otherCounts, round]);
-
-  const onVote = useCallback(
-    (vote: Vote) => {
-      const option = round.options[index];
-      if (!option) return;
-      setYourMarks((m) => ({ ...m, [option.id]: vote }));
-      setHistory((h) => [...h, option.id]);
-      setReturnedId(null);
-      const next = round.options[index + 1];
-      setAnnouncement(`You ${VOTE_PAST[vote]} ${option.name}. ${next ? `Next: ${next.name}.` : "That was the last one."}`);
-      if (!next) setPhase("waiting");
-    },
-    [round.options, index],
-  );
-
-  const onUndo = useCallback(() => {
-    const id = history.at(-1);
-    if (!id) return;
-    const option = round.options.find((o) => o.id === id);
-    setHistory((h) => h.slice(0, -1));
-    setYourMarks((m) => {
-      const rest = { ...m };
-      delete rest[id];
-      return rest;
-    });
-    setReturnedId(id);
-    setPhase("swipe");
-    setAnnouncement(`Took back your mark on ${option?.name}.`);
-  }, [history, round.options]);
-
-  const runItBack = useCallback(() => {
-    setYourMarks({});
-    setHistory([]);
+  function onVote(vote: Vote) {
+    const option = round.options[index];
+    if (!option) return;
+    setMark(option.id, vote);
     setReturnedId(null);
-    setOtherCounts(Object.fromEntries(others.map((p) => [p.id, OTHERS_START[p.id] ?? 0])));
-    setCalledEarly(false);
-    setPhase("swipe");
-    setAnnouncement("New round. Same options.");
-  }, [others]);
+    const next = round.options[index + 1];
+    setAnnouncement(`You ${VOTE_PAST[vote]} ${option.name}. ${next ? `Next: ${next.name}.` : "That was the last one."}`);
+  }
 
-  const lastId = history.at(-1);
-  const lastVote: { option: Option; vote: Vote } | null = lastId
-    ? { option: round.options.find((o) => o.id === lastId)!, vote: yourMarks[lastId] }
-    : null;
+  const lastOption: Option | undefined = round.options[index - 1];
+  const lastMark = lastOption ? yourMarks[lastOption.id] : undefined;
+  const lastVote = lastOption && lastMark ? { option: lastOption, vote: lastMark } : null;
 
-  const current = round.options[index];
+  function onUndo() {
+    if (!lastOption) return;
+    setMark(lastOption.id, null);
+    setReturnedId(lastOption.id);
+    setAnnouncement(`Took back your mark on ${lastOption.name}.`);
+  }
+
   const upcoming = round.options[index + 1];
-  const left = total - index;
   const status =
     phase === "reveal"
       ? "The call is in."
@@ -123,7 +84,7 @@ export function RoundScreen({ round, reasonFails }: { round: Round; reasonFails:
               .filter((p) => (otherCounts[p.id] ?? 0) < total)
               .map((p) => p.name)
               .join(" and ")}.`
-        : `${left} left${upcoming ? ` · next: ${upcoming.name}` : " · last one"}`;
+        : `${total - index} left${upcoming ? ` · next: ${upcoming.name}` : " · last one"}`;
 
   return (
     <>
@@ -132,7 +93,7 @@ export function RoundScreen({ round, reasonFails }: { round: Round; reasonFails:
         <p className="sr-only" aria-live="polite">
           {announcement}
         </p>
-        {phase === "swipe" && current && (
+        {phase === "swipe" && you && (
           <SwipeDeck
             round={round}
             you={you}
@@ -141,31 +102,38 @@ export function RoundScreen({ round, reasonFails }: { round: Round; reasonFails:
             returnedId={returnedId}
             onVote={onVote}
             onUndo={onUndo}
+            footnote={footnote}
           />
         )}
-        {phase === "waiting" && (
+        {phase === "waiting" && you && (
           <Waiting
             round={round}
             you={you}
-            marks={marks}
+            marks={{ [you.id]: yourMarks }}
             counts={counts}
             everyoneIn={othersDone}
-            onCallNow={() => {
-              setCalledEarly(true);
-              setPhase("reveal");
-            }}
+            onCallNow={state.callNow}
             onUndo={onUndo}
           />
         )}
-        {phase === "reveal" && (
+        {result && (
           <Reveal
             round={round}
-            tally={tally(round, marks)}
-            marks={marks}
+            tally={tally(round, result.marks)}
+            marks={result.marks}
             counts={counts}
-            calledEarly={calledEarly}
+            calledEarly={result.calledEarly}
             reasonFails={reasonFails}
-            onRunItBack={runItBack}
+            onRunItBack={
+              runItBack
+                ? () => {
+                    setReturnedId(null);
+                    setAnnouncement("New round. Same options.");
+                    runItBack();
+                  }
+                : null
+            }
+            footnote={footnote}
           />
         )}
       </main>

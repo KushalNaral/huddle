@@ -21,7 +21,7 @@ type MarkProps = {
   vote: Vote;
   color?: string;
   /** 0–1: how much of the stroke is drawn. Omit to draw it in. */
-  progress?: number;
+  progress?: number | undefined;
   animate?: boolean;
   delay?: number;
   duration?: number;
@@ -114,4 +114,11 @@ export const VOTE_PAST: Record<Vote, string> = {
   no: "crossed out",
   yes: "ticked",
   love: "circled",
+};
+
+/** The same, said of one option: "Sam crossed it out". */
+export const VOTE_DID: Record<Vote, string> = {
+  no: "crossed it out",
+  yes: "ticked it",
+  love: "circled it",
 };

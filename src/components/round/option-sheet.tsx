@@ -90,18 +90,20 @@ export function OptionSheet({
       )}
 
       <dl className="mt-5">
-        <Fact label="Price">{option.priceLabel}</Fact>
-        <Fact label="Getting it">{option.distance}</Fact>
-        <Fact label="Rating">
-          {option.rating ? (
-            <>
-              {option.rating.score.toFixed(1)}
-              <span className="font-normal text-ink-soft"> from {option.rating.count.toLocaleString("en-US")} ratings</span>
-            </>
-          ) : (
-            <span className="font-normal text-ink-soft">Not rated</span>
-          )}
-        </Fact>
+        {option.priceLabel && <Fact label="Price">{option.priceLabel}</Fact>}
+        {option.distance && <Fact label="Getting it">{option.distance}</Fact>}
+        {(option.rating || option.source) && (
+          <Fact label="Rating">
+            {option.rating ? (
+              <>
+                {option.rating.score.toFixed(1)}
+                <span className="font-normal text-ink-soft"> from {option.rating.count.toLocaleString("en-US")} ratings</span>
+              </>
+            ) : (
+              <span className="font-normal text-ink-soft">Not rated</span>
+            )}
+          </Fact>
+        )}
         <Fact label="Added by">
           {addedBy ? <PlayerTag player={addedBy} /> : "Someone"}
           <span className="font-normal text-ink-soft">{option.source ? `, from ${option.source}` : ", typed in"}</span>

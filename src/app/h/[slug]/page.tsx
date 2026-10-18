@@ -1,36 +1,41 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { notFound } from "next/navigation";
-import { RoundScreen } from "@/components/round/round-screen";
-import { demoRound } from "@/lib/round";
+import { LiveHuddle } from "@/components/huddle/live-huddle";
+import { DemoRound } from "@/components/round/demo-round";
+import { readDeviceToken } from "@/server/device";
+import { getHuddle, viewFor } from "@/server/huddles";
+
+// Huddle links are private by default: keep them out of search results.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 export default function HuddlePage(props: PageProps<"/h/[slug]">) {
   return (
     <Suspense fallback={<LoadingBoard />}>
-      <LoadedRound params={props.params} searchParams={props.searchParams} />
+      <LoadedHuddle params={props.params} searchParams={props.searchParams} />
     </Suspense>
   );
 }
 
-async function LoadedRound({
+async function LoadedHuddle({
   params,
   searchParams,
 }: Pick<PageProps<"/h/[slug]">, "params" | "searchParams">) {
   const { slug } = await params;
-  const search = await searchParams;
 
-  // Only the demo round exists until the backend lands.
-  if (slug !== "demo") notFound();
+  if (slug === "demo") {
+    const search = await searchParams;
+    const players = Number(search.players ?? 2);
+    return <DemoRound players={Number.isFinite(players) ? players : 2} reasonFails={search.reason === "fail"} />;
+  }
 
-  const players = Number(search.players ?? 2);
-  return (
-    <RoundScreen
-      round={demoRound(Number.isFinite(players) ? players : 2)}
-      reasonFails={search.reason === "fail"}
-    />
-  );
+  const huddle = await getHuddle(slug);
+  if (!huddle) notFound();
+  const view = viewFor(huddle, await readDeviceToken());
+  return <LiveHuddle key={slug} initial={view} />;
 }
 
-/** The turf strip and an empty board while the round loads. */
+/** The turf strip and an empty board while the huddle loads. */
 function LoadingBoard() {
   return (
     <>

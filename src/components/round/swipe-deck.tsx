@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { MARKER, Mark, VOTE_LABEL, VOTE_PAST } from "@/components/marks";
 import { OptionSheet } from "@/components/round/option-sheet";
-import { overCap, type Option, type Player, type Round, type Vote } from "@/lib/round";
+import { boundNote, type Option, type Player, type Round, type Vote } from "@/lib/round";
 
 type Props = {
   round: Round;
@@ -14,6 +14,7 @@ type Props = {
   returnedId: string | null;
   onVote: (vote: Vote) => void;
   onUndo: () => void;
+  footnote?: string | undefined;
 };
 
 type Drag = { x: number; y: number };
@@ -29,7 +30,7 @@ function intent({ x, y }: Drag): { vote: Vote; progress: number } | null {
   return null;
 }
 
-export function SwipeDeck({ round, you, index, lastVote, returnedId, onVote, onUndo }: Props) {
+export function SwipeDeck({ round, you, index, lastVote, returnedId, onVote, onUndo, footnote }: Props) {
   const [drag, setDrag] = useState<Drag | null>(null);
   const [exiting, setExiting] = useState<Exiting | null>(null);
   const start = useRef<{ x: number; y: number; id: number } | null>(null);
@@ -37,7 +38,7 @@ export function SwipeDeck({ round, you, index, lastVote, returnedId, onVote, onU
 
   const current = round.options[index];
   const playerById = (id: string) => round.players.find((p) => p.id === id);
-  const capNote = (o: Option) => (overCap(round, o) ? `Over your $${round.yourCap} cap` : null);
+  const capNote = (o: Option) => boundNote(round, o);
 
   const commit = useCallback(
     (vote: Vote, from: Drag = { x: 0, y: 0 }) => {
@@ -174,7 +175,7 @@ export function SwipeDeck({ round, you, index, lastVote, returnedId, onVote, onU
       </div>
 
       <p className="mt-auto pt-6 pb-[max(1rem,env(safe-area-inset-bottom))] text-center text-[0.8125rem] text-ink-soft">
-        Demo round: places, prices and ratings are made up.
+        {footnote}
       </p>
     </div>
   );

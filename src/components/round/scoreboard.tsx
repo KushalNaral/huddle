@@ -14,7 +14,9 @@ const pad = (n: number) => String(n).padStart(2, "0");
 
 /** The turf strip: the question, where you are, and everyone's count. */
 export function Scoreboard({ question, status, players, counts, total }: Props) {
-  const mirrored = players.length === 2;
+  const [left, right] = players;
+  const pair = players.length === 2 && left && right ? { left, right } : null;
+  const mirrored = pair !== null;
 
   return (
     <header className="on-turf bg-turf text-turf-chalk">
@@ -32,11 +34,11 @@ export function Scoreboard({ question, status, players, counts, total }: Props) 
           }`}
           style={mirrored ? undefined : { gridTemplateColumns: `repeat(${players.length}, minmax(0, 1fr))` }}
         >
-          {mirrored ? (
+          {pair ? (
             <>
-              <PlayerCount player={players[0]} count={counts[players[0].id] ?? 0} total={total} align="end" />
+              <PlayerCount player={pair.left} count={counts[pair.left.id] ?? 0} total={total} align="end" />
               <CenterLine />
-              <PlayerCount player={players[1]} count={counts[players[1].id] ?? 0} total={total} align="start" />
+              <PlayerCount player={pair.right} count={counts[pair.right.id] ?? 0} total={total} align="start" />
             </>
           ) : (
             players.map((p, i) => (

@@ -7,7 +7,8 @@ type Props = {
   marks: Marks;
   counts: Record<string, number>;
   everyoneIn: boolean;
-  onCallNow: () => void;
+  /** Null unless you started the huddle: only the host can call it early. */
+  onCallNow: (() => void) | null;
   onUndo: () => void;
 };
 
@@ -50,7 +51,7 @@ export function Waiting({ round, you, marks, counts, everyoneIn, onCallNow, onUn
 
       {!everyoneIn && (
         <div className="mt-auto flex flex-col gap-2 pt-6">
-          {you.isHost && (
+          {onCallNow && (
             <>
               <button
                 type="button"

@@ -42,7 +42,7 @@ Proposed, not locked in. Change it here if we decide otherwise.
 ## Conventions
 - Mobile-first: design every screen at 375px width first.
 - No secrets in client code. Claude API calls go through server routes only.
-- Participants are identified by an unguessable device token in localStorage. Never put names or notes in URLs.
+- Participants are identified by an unguessable device token in an httpOnly cookie (only its hash is stored). Never put names or notes in URLs; every form posts.
 - Keep the Huddle link the only thing someone needs to participate.
 - Every AI call has a non-AI fallback (show the raw vote ranking if the API fails).
 
@@ -59,4 +59,22 @@ This is Next.js 16: read `node_modules/next/dist/docs/` before using an API you 
 - Visual system lives in `DESIGN.md`; the swipe surface's direction contract is in `.impeccable/surfaces/`.
 
 ## Status
-Swipe → waiting → reveal is built against mock data (`demoRound()` in `src/lib/round.ts`). No backend, real-time sync, Claude calls, or link unfurling yet.
+**Stage 1 is done.** Huddles are real: create, join, lobby, swipe, call, run it back. The demo still lives at `/h/demo`.
+- `src/server/store.ts`: the `HuddleStore` interface plus an in-memory implementation. Stage 2 adds a Supabase implementation.
+- `src/server/huddles.ts`: all domain rules and authorization (host-only actions, locked options, settle-when-done).
+- `src/app/h/actions.ts`: Server Functions. Every argument is `unknown` and checked.
+- `src/app/api/h/[slug]/route.ts`: the polled per-device view.
+- `src/lib/view.ts`: `HuddleView`, the only shape a device ever receives. Others' votes stay hidden until the call, and others' budgets never leave the server.
+- `src/components/round/round-screen.tsx` is driven by a `RoundState`. That comes from `useDemoRound` for the demo and `useLiveRound` for live huddles.
+- Identity is an httpOnly `huddle_device` cookie, and the store keeps only its sha-256 hash.
+
+## TypeScript
+Strict, with no exceptions: `strict`, `noUncheckedIndexedAccess`, `exactOptionalPropertyTypes`, and typed ESLint (`no-explicit-any`, `no-non-null-assertion`, `switch-exhaustiveness-check`, `no-floating-promises`, `no-unnecessary-condition`). Narrow with guards rather than casts, and run `npx tsc --noEmit` and `npm run lint` before committing.
+
+## Build stages
+Each stage ships on its own and keeps `/h/demo` working.
+1. **Real huddles, no external services.** You can create a huddle, join by link, add typed or pasted options, set a budget and a note, and the host starts the round. Votes are stored on the server. Everyone's progress syncs by polling, and the reveal comes from real votes. The store lives in memory behind an interface, so it resets when the dev server restarts.
+2. **Supabase.** The store moves to Postgres (the tables are in the data model above) and polling is replaced by realtime channels. Needs a Supabase project, with its URL and keys in `.env.local`.
+3. **Claude.** It parses each person's free-text note into constraints and writes the one-sentence reason. Every call falls back to the non-AI path. Needs `ANTHROPIC_API_KEY`.
+4. **Link unfurling.** It fetches the title, image, price and rating for pasted links, server-side, with a timeout and an SSRF guard.
+5. **Ship.** Vitest for `tally()` and the store, Playwright for the core loop across two browser contexts, and a deploy to Vercel.

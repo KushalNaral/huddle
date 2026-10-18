@@ -17,8 +17,9 @@ export type Option = {
   kind: string;
   /** Rough cost per person in dollars; null when unknown. */
   priceEach: number | null;
-  priceLabel: string;
-  distance: string;
+  priceLabel: string | null;
+  /** How far, or how long until it's ready. */
+  distance: string | null;
   rating: { score: number; count: number } | null;
   addedBy: string;
   /** Domain the link came from; null when the option was typed. */
@@ -33,9 +34,15 @@ export type Round = {
   /** Your own constraint note, parsed. Others' notes stay private. */
   yourCap: number | null;
   yourNote: string | null;
-  /** Pre-recorded votes for everyone but you (demo stand-in for live data). */
-  scripted: Record<string, Record<string, Vote>>;
+  /**
+   * Options that break someone's budget, and whose. Computed on the server,
+   * so other people's caps never reach this device.
+   */
+  bounds: Record<string, Bound>;
 };
+
+/** Whose stated budget an option breaks. */
+export type Bound = "yours" | "theirs";
 
 export type Marks = Record<string, Record<string, Vote | undefined>>;
 
@@ -80,7 +87,7 @@ export function tally(round: Round, marks: Marks): Tally {
       if (v === "love") loves++;
       if (v === "no") nos++;
     }
-    return { option, marks: m, points, loves, nos, order, outOfBounds: overCap(round, option) };
+    return { option, marks: m, points, loves, nos, order, outOfBounds: round.bounds[option.id] !== undefined };
   });
 
   rows.sort(
@@ -129,14 +136,36 @@ export function explain(round: Round, row: TallyRow): string {
 
   const o = row.option;
   let cost = o.priceLabel;
-  if (round.yourCap !== null && o.priceEach !== null && o.priceEach <= round.yourCap) {
+  if (cost && round.yourCap !== null && o.priceEach !== null && o.priceEach <= round.yourCap) {
     cost += `, under your $${round.yourCap} cap`;
   }
-  return `${agreement}. ${cost}, and ${o.distance.toLowerCase()}.`;
+  const facts = [cost, o.distance?.toLowerCase()].filter(Boolean);
+  if (facts.length === 0) return `${agreement}.`;
+  return `${agreement}. ${facts.join(", and ")}.`;
 }
 
-export function overCap(round: Round, option: Option): boolean {
-  return round.yourCap !== null && option.priceEach !== null && option.priceEach > round.yourCap;
+/** Which options break a stated budget, labelled by whose budget it is. */
+export function computeBounds(
+  options: Option[],
+  caps: { playerId: string; cap: number | null }[],
+  youId: string | null,
+): Record<string, Bound> {
+  const bounds: Record<string, Bound> = {};
+  for (const o of options) {
+    const price = o.priceEach;
+    if (price === null) continue;
+    const broken = caps.filter((c) => c.cap !== null && price > c.cap);
+    if (broken.length === 0) continue;
+    bounds[o.id] = broken.some((c) => c.playerId === youId) ? "yours" : "theirs";
+  }
+  return bounds;
+}
+
+/** The note shown on an out-of-bounds option, without revealing anyone else's number. */
+export function boundNote(round: Round, option: Option): string | null {
+  const b = round.bounds[option.id];
+  if (!b) return null;
+  return b === "yours" && round.yourCap !== null ? `Over your $${round.yourCap} cap` : "Over someone’s budget";
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +270,7 @@ const DEMO_OPTIONS: Option[] = [
   },
 ];
 
-const DEMO_SCRIPTED: Round["scripted"] = {
+export const DEMO_SCRIPTED: Record<string, Record<string, Vote>> = {
   sam: {
     "thai-basil": "yes",
     "pho-88": "no",
@@ -283,6 +312,6 @@ export function demoRound(playerCount: number): Round {
     options: DEMO_OPTIONS,
     yourCap: 20,
     yourNote: "Under $20 each tonight",
-    scripted: DEMO_SCRIPTED,
+    bounds: computeBounds(DEMO_OPTIONS, [{ playerId: "you", cap: 20 }], "you"),
   };
 }
